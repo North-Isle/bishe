@@ -1,0 +1,16 @@
+# 客户端配置文件
+
+# 服务器地址和端口
+SERVER_HOST = '127.0.0.1'  # 服务器IP地址，根据实际情况修改
+SERVER_PORT = 5000
+
+# 视频流配置
+VIDEO_WIDTH = 640
+VIDEO_HEIGHT = 480
+VIDEO_FPS = 30
+
+# 音频流配置
+AUDIO_RATE = 44100
+AUDIO_CHANNELS = 1
+AUDIO_FORMAT = 1  # 16位PCM
+AUDIO_CHUNK = 1024

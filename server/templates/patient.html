@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>患者页面 - 远程终端问诊系统</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .video-container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+        .video-box {
+            width: 48%;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            background-color: white;
+        }
+        .video-box h2 {
+            text-align: center;
+            color: #555;
+        }
+        video {
+            width: 100%;
+            height: auto;
+            border-radius: 5px;
+        }
+        .chat-container {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: white;
+            padding: 10px;
+        }
+        .chat-messages {
+            height: 300px;
+            overflow-y: scroll;
+            border: 1px solid #eee;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .chat-input {
+            display: flex;
+        }
+        .chat-input input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px 0 0 5px;
+        }
+        .chat-input button {
+            padding: 10px 20px;
+            border: none;
+            background-color: #2196F3;
+            color: white;
+            border-radius: 0 5px 5px 0;
+            cursor: pointer;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>患者页面</h1>
+        
+        <div class="video-container">
+            <div class="video-box">
+                <h2>我的视频</h2>
+                <video id="patient-video" autoplay></video>
+            </div>
+            <div class="video-box">
+                <h2>医生视频</h2>
+                <video id="doctor-video" autoplay></video>
+            </div>
+        </div>
+        
+        <div class="chat-container">
+            <h2>聊天</h2>
+            <div class="chat-messages" id="chat-messages"></div>
+            <div class="chat-input">
+                <input type="text" id="chat-input" placeholder="输入消息...">
+                <button id="send-message">发送</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 初始化SocketIO
+        const socket = io();
+        
+        // 获取视频元素
+        const patientVideo = document.getElementById('patient-video');
+        const doctorVideo = document.getElementById('doctor-video');
+        
+        // 获取聊天元素
+        const chatMessages = document.getElementById('chat-messages');
+        const chatInput = document.getElementById('chat-input');
+        const sendMessageBtn = document.getElementById('send-message');
+        
+        // 处理视频流
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+            .then(stream => {
+                patientVideo.srcObject = stream;
+                
+                // 发送视频流
+                const videoTrack = stream.getVideoTracks()[0];
+                const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            const base64data = e.target.result.split(',')[1];
+                            socket.emit('video_frame', base64data);
+                        };
+                        reader.readAsDataURL(event.data);
+                    }
+                };
+                
+                mediaRecorder.start(100); // 每100ms发送一次
+            })
+            .catch(error => {
+                console.error('Error accessing media devices:', error);
+            });
+        
+        // 接收视频流
+        socket.on('video_frame', (data) => {
+            const blob = new Blob([Uint8Array.from(atob(data), c => c.charCodeAt(0))], { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            doctorVideo.srcObject = null;
+            doctorVideo.src = url;
+        });
+        
+        // 处理音频流
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+                const audioTrack = stream.getAudioTracks()[0];
+                const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            const base64data = e.target.result.split(',')[1];
+                            socket.emit('audio_frame', base64data);
+                        };
+                        reader.readAsDataURL(event.data);
+                    }
+                };
+                
+                mediaRecorder.start(100); // 每100ms发送一次
+            })
+            .catch(error => {
+                console.error('Error accessing audio devices:', error);
+            });
+        
+        // 接收音频流
+        socket.on('audio_frame', (data) => {
+            const blob = new Blob([Uint8Array.from(atob(data), c => c.charCodeAt(0))], { type: 'audio/webm' });
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            audio.play();
+        });
+        
+        // 发送聊天消息
+        sendMessageBtn.addEventListener('click', () => {
+            const message = chatInput.value.trim();
+            if (message) {
+                socket.emit('chat_message', { message, sender: 'patient' });
+                chatInput.value = '';
+            }
+        });
+        
+        // 接收聊天消息
+        socket.on('chat_message', (data) => {
+            const messageElement = document.createElement('div');
+            messageElement.innerHTML = `<strong>${data.sender}：</strong>${data.message}`;
+            chatMessages.appendChild(messageElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
+    </script>
+</body>
+</html>

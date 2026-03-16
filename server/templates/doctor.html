@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>医生页面 - 远程终端问诊系统</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .video-container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+        .video-box {
+            width: 48%;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            background-color: white;
+        }
+        .video-box h2 {
+            text-align: center;
+            color: #555;
+        }
+        video {
+            width: 100%;
+            height: auto;
+            border-radius: 5px;
+        }
+        .chat-container {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: white;
+            padding: 10px;
+        }
+        .chat-messages {
+            height: 300px;
+            overflow-y: scroll;
+            border: 1px solid #eee;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .chat-input {
+            display: flex;
+        }
+        .chat-input input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px 0 0 5px;
+        }
+        .chat-input button {
+            padding: 10px 20px;
+            border: none;
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 0 5px 5px 0;
+            cursor: pointer;
+        }
+        .consultation-form {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: white;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .form-group textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        .form-group button {
+            padding: 10px 20px;
+            border: none;
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .consultation-history {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: white;
+            padding: 20px;
+        }
+        .consultation-item {
+            border-bottom: 1px solid #eee;
+            padding: 10px 0;
+        }
+        .consultation-item:last-child {
+            border-bottom: none;
+        }
+        .consultation-item h3 {
+            margin: 0 0 5px 0;
+            color: #333;
+        }
+        .consultation-item p {
+            margin: 5px 0;
+            color: #666;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>医生页面</h1>
+        
+        <div class="video-container">
+            <div class="video-box">
+                <h2>患者视频</h2>
+                <video id="patient-video" autoplay></video>
+            </div>
+            <div class="video-box">
+                <h2>我的视频</h2>
+                <video id="doctor-video" autoplay></video>
+            </div>
+        </div>
+        
+        <div class="chat-container">
+            <h2>聊天</h2>
+            <div class="chat-messages" id="chat-messages"></div>
+            <div class="chat-input">
+                <input type="text" id="chat-input" placeholder="输入消息...">
+                <button id="send-message">发送</button>
+            </div>
+        </div>
+        
+        <div class="consultation-form">
+            <h2>问诊记录</h2>
+            <div class="form-group">
+                <label for="patient-name">患者姓名</label>
+                <input type="text" id="patient-name" placeholder="请输入患者姓名">
+            </div>
+            <div class="form-group">
+                <label for="doctor-name">医生姓名</label>
+                <input type="text" id="doctor-name" placeholder="请输入医生姓名">
+            </div>
+            <div class="form-group">
+                <label for="symptoms">症状</label>
+                <textarea id="symptoms" placeholder="请描述患者症状"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="diagnosis">诊断</label>
+                <textarea id="diagnosis" placeholder="请输入诊断结果"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="prescription">处方</label>
+                <textarea id="prescription" placeholder="请输入处方"></textarea>
+            </div>
+            <div class="form-group">
+                <button id="save-consultation">保存问诊记录</button>
+            </div>
+        </div>
+        
+        <div class="consultation-history">
+            <h2>问诊历史</h2>
+            {% for consultation in consultations %}
+            <div class="consultation-item">
+                <h3>{{ consultation.patient_name }} - {{ consultation.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</h3>
+                <p><strong>医生：</strong>{{ consultation.doctor_name }}</p>
+                <p><strong>症状：</strong>{{ consultation.symptoms }}</p>
+                <p><strong>诊断：</strong>{{ consultation.diagnosis or '未填写' }}</p>
+                <p><strong>处方：</strong>{{ consultation.prescription or '未填写' }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <script>
+        // 初始化SocketIO
+        const socket = io();
+        
+        // 获取视频元素
+        const patientVideo = document.getElementById('patient-video');
+        const doctorVideo = document.getElementById('doctor-video');
+        
+        // 获取聊天元素
+        const chatMessages = document.getElementById('chat-messages');
+        const chatInput = document.getElementById('chat-input');
+        const sendMessageBtn = document.getElementById('send-message');
+        
+        // 获取问诊记录表单元素
+        const patientNameInput = document.getElementById('patient-name');
+        const doctorNameInput = document.getElementById('doctor-name');
+        const symptomsInput = document.getElementById('symptoms');
+        const diagnosisInput = document.getElementById('diagnosis');
+        const prescriptionInput = document.getElementById('prescription');
+        const saveConsultationBtn = document.getElementById('save-consultation');
+        
+        // 处理视频流
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+            .then(stream => {
+                doctorVideo.srcObject = stream;
+                
+                // 发送视频流
+                const videoTrack = stream.getVideoTracks()[0];
+                const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            const base64data = e.target.result.split(',')[1];
+                            socket.emit('video_frame', base64data);
+                        };
+                        reader.readAsDataURL(event.data);
+                    }
+                };
+                
+                mediaRecorder.start(100); // 每100ms发送一次
+            })
+            .catch(error => {
+                console.error('Error accessing media devices:', error);
+            });
+        
+        // 接收视频流
+        socket.on('video_frame', (data) => {
+            const blob = new Blob([Uint8Array.from(atob(data), c => c.charCodeAt(0))], { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            patientVideo.srcObject = null;
+            patientVideo.src = url;
+        });
+        
+        // 处理音频流
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+                const audioTrack = stream.getAudioTracks()[0];
+                const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            const base64data = e.target.result.split(',')[1];
+                            socket.emit('audio_frame', base64data);
+                        };
+                        reader.readAsDataURL(event.data);
+                    }
+                };
+                
+                mediaRecorder.start(100); // 每100ms发送一次
+            })
+            .catch(error => {
+                console.error('Error accessing audio devices:', error);
+            });
+        
+        // 接收音频流
+        socket.on('audio_frame', (data) => {
+            const blob = new Blob([Uint8Array.from(atob(data), c => c.charCodeAt(0))], { type: 'audio/webm' });
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            audio.play();
+        });
+        
+        // 发送聊天消息
+        sendMessageBtn.addEventListener('click', () => {
+            const message = chatInput.value.trim();
+            if (message) {
+                socket.emit('chat_message', { message, sender: 'doctor' });
+                chatInput.value = '';
+            }
+        });
+        
+        // 接收聊天消息
+        socket.on('chat_message', (data) => {
+            const messageElement = document.createElement('div');
+            messageElement.innerHTML = `<strong>${data.sender}：</strong>${data.message}`;
+            chatMessages.appendChild(messageElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
+        
+        // 保存问诊记录
+        saveConsultationBtn.addEventListener('click', () => {
+            const patientName = patientNameInput.value.trim();
+            const doctorName = doctorNameInput.value.trim();
+            const symptoms = symptomsInput.value.trim();
+            const diagnosis = diagnosisInput.value.trim();
+            const prescription = prescriptionInput.value.trim();
+            
+            if (patientName && doctorName && symptoms) {
+                socket.emit('save_consultation', {
+                    patient_name: patientName,
+                    doctor_name: doctorName,
+                    symptoms: symptoms,
+                    diagnosis: diagnosis,
+                    prescription: prescription
+                });
+            } else {
+                alert('请填写患者姓名、医生姓名和症状');
+            }
+        });
+        
+        // 处理问诊记录保存结果
+        socket.on('consultation_saved', (data) => {
+            if (data.status === 'success') {
+                alert('问诊记录保存成功');
+                // 刷新页面
+                window.location.reload();
+            } else {
+                alert('问诊记录保存失败：' + data.message);
+            }
+        });
+    </script>
+</body>
+</html>

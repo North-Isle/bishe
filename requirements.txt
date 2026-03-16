@@ -1,0 +1,7 @@
+Flask>=2.0.1
+Flask-SocketIO>=5.3.0
+opencv-python>=4.8.1.78
+PyAudio>=0.2.13
+numpy>=1.26.0
+SQLAlchemy>=2.0.0
+python-dotenv>=1.0.0
