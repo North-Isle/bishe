@@ -162,6 +162,10 @@
                 <input type="text" id="patient-name" placeholder="请输入患者姓名">
             </div>
             <div class="form-group">
+                <label for="patient-id-card">身份证号</label>
+                <input type="text" id="patient-id-card" placeholder="请输入患者身份证号">
+            </div>
+            <div class="form-group">
                 <label for="doctor-name">医生姓名</label>
                 <input type="text" id="doctor-name" placeholder="请输入医生姓名">
             </div>
@@ -187,6 +191,7 @@
             {% for consultation in consultations %}
             <div class="consultation-item">
                 <h3>{{ consultation.patient_name }} - {{ consultation.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</h3>
+                <p><strong>身份证号：</strong>{{ consultation.patient_id_card }}</p>
                 <p><strong>医生：</strong>{{ consultation.doctor_name }}</p>
                 <p><strong>症状：</strong>{{ consultation.symptoms }}</p>
                 <p><strong>诊断：</strong>{{ consultation.diagnosis or '未填写' }}</p>
@@ -217,13 +222,39 @@
         const prescriptionInput = document.getElementById('prescription');
         const saveConsultationBtn = document.getElementById('save-consultation');
         
+        // 音频控制
+        let audioEnabled = true;
+        const toggleAudioBtn = document.createElement('button');
+        toggleAudioBtn.textContent = '关闭音频';
+        toggleAudioBtn.style.position = 'absolute';
+        toggleAudioBtn.style.top = '10px';
+        toggleAudioBtn.style.right = '10px';
+        toggleAudioBtn.style.zIndex = '1000';
+        toggleAudioBtn.style.padding = '5px 10px';
+        toggleAudioBtn.style.backgroundColor = '#4CAF50';
+        toggleAudioBtn.style.color = 'white';
+        toggleAudioBtn.style.border = 'none';
+        toggleAudioBtn.style.borderRadius = '3px';
+        toggleAudioBtn.style.cursor = 'pointer';
+        document.body.appendChild(toggleAudioBtn);
+
         // 处理视频流
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        navigator.mediaDevices.getUserMedia({ video: true, audio: audioEnabled })
             .then(stream => {
                 doctorVideo.srcObject = stream;
                 
+                // 音频控制功能
+                toggleAudioBtn.addEventListener('click', () => {
+                    audioEnabled = !audioEnabled;
+                    const audioTracks = stream.getAudioTracks();
+                    audioTracks.forEach(track => {
+                        track.enabled = audioEnabled;
+                    });
+                    toggleAudioBtn.textContent = audioEnabled ? '关闭音频' : '开启音频';
+                    toggleAudioBtn.style.backgroundColor = audioEnabled ? '#4CAF50' : '#f44336';
+                });
+                
                 // 发送视频流
-                const videoTrack = stream.getVideoTracks()[0];
                 const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
                 
                 mediaRecorder.ondataavailable = (event) => {
@@ -302,6 +333,7 @@
         // 保存问诊记录
         saveConsultationBtn.addEventListener('click', () => {
             const patientName = patientNameInput.value.trim();
+            const patientIdCard = document.getElementById('patient-id-card').value.trim();
             const doctorName = doctorNameInput.value.trim();
             const symptoms = symptomsInput.value.trim();
             const diagnosis = diagnosisInput.value.trim();
@@ -310,6 +342,7 @@
             if (patientName && doctorName && symptoms) {
                 socket.emit('save_consultation', {
                     patient_name: patientName,
+                    patient_id_card: patientIdCard,
                     doctor_name: doctorName,
                     symptoms: symptoms,
                     diagnosis: diagnosis,

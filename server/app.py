@@ -52,13 +52,14 @@ def handle_chat_message(data):
 @socketio.on('save_consultation')
 def handle_save_consultation(data):
     patient_name = data.get('patient_name')
+    patient_id_card = data.get('patient_id_card')
     doctor_name = data.get('doctor_name')
     symptoms = data.get('symptoms')
     diagnosis = data.get('diagnosis')
     prescription = data.get('prescription')
     
-    if patient_name and doctor_name and symptoms:
-        add_consultation(patient_name, doctor_name, symptoms, diagnosis, prescription)
+    if patient_name and patient_id_card and doctor_name and symptoms:
+        add_consultation(patient_name, patient_id_card, doctor_name, symptoms, diagnosis, prescription)
         emit('consultation_saved', {'status': 'success'})
     else:
         emit('consultation_saved', {'status': 'error', 'message': 'Missing required fields'})

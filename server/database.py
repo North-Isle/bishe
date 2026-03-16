@@ -13,6 +13,7 @@ class Consultation(Base):
     
     id = Column(Integer, primary_key=True)
     patient_name = Column(String(100), nullable=False)
+    patient_id_card = Column(String(18), nullable=False)  # 身份证号
     doctor_name = Column(String(100), nullable=False)
     symptoms = Column(Text, nullable=False)
     diagnosis = Column(Text, nullable=True)
@@ -26,9 +27,10 @@ Session = sessionmaker(bind=engine)
 session = Session()
 
 # 新增问诊记录
-def add_consultation(patient_name, doctor_name, symptoms, diagnosis=None, prescription=None):
+def add_consultation(patient_name, patient_id_card, doctor_name, symptoms, diagnosis=None, prescription=None):
     consultation = Consultation(
         patient_name=patient_name,
+        patient_id_card=patient_id_card,
         doctor_name=doctor_name,
         symptoms=symptoms,
         diagnosis=diagnosis,
