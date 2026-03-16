@@ -4,7 +4,7 @@ import socketio
 import threading
 import numpy as np
 from config import SERVER_HOST, SERVER_PORT, VIDEO_WIDTH, VIDEO_HEIGHT, VIDEO_FPS
-from utils.video_utils import capture_frame, frame_to_base64, base64_to_frame, show_frame
+from utils.video_utils import capture_frame, frame_to_base64, base64_to_frame, show_frame, init_camera, release_camera
 from utils.audio_utils import init_audio_stream, read_audio, audio_to_base64, close_audio_stream
 
 # 初始化SocketIO客户端
@@ -16,12 +16,9 @@ has_camera = False
 
 # 尝试初始化摄像头
 try:
-    cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, VIDEO_WIDTH)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, VIDEO_HEIGHT)
-    cap.set(cv2.CAP_PROP_FPS, VIDEO_FPS)
+    cap = init_camera(VIDEO_WIDTH, VIDEO_HEIGHT, VIDEO_FPS)
     # 检查摄像头是否成功打开
-    if cap.isOpened():
+    if cap is not None:
         has_camera = True
         print("摄像头初始化成功")
     else:
@@ -115,7 +112,7 @@ def receive_video(data):
         if key == ord('q'):
             sio.disconnect()
             if has_camera and cap is not None:
-                cap.release()
+                release_camera(cap)
             # 检查音频流是否已初始化
             try:
                 close_audio_stream(audio, stream)
