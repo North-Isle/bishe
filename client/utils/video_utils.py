@@ -139,7 +139,8 @@ def release_camera(cap):
 
 def frame_to_base64(frame):
     try:
-        _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 50])
+        # 降低JPEG质量到30%，减少数据传输量，提高流畅度
+        _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 30])
         data = base64.b64encode(buffer).decode('utf-8')
         return data
     except:

@@ -67,7 +67,7 @@ class VideoCallClient(QMainWindow):
         # 启动视频发送定时器
         self.video_timer = QTimer()
         self.video_timer.timeout.connect(self.send_video_frame)
-        self.video_timer.start(33)  # 约30fps
+        self.video_timer.start(66)  # 约15fps，与VIDEO_FPS匹配
         
         # 启动音频发送线程
         self.audio_thread_running = False
