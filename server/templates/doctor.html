@@ -203,7 +203,7 @@
     
     <script>
         // 初始化SocketIO
-        const socket = io();
+        const socket = io(window.location.origin);
         
         // 获取视频元素
         const patientVideo = document.getElementById('patient-video');
