@@ -36,6 +36,14 @@
             text-align: center;
             color: #555;
         }
+        .video-box img {
+            width: 100%;
+            height: auto;
+            border-radius: 5px;
+            background-color: #2a2a2a;
+            min-height: 300px;
+            object-fit: cover;
+        }
         video {
             width: 100%;
             height: auto;
@@ -138,7 +146,7 @@
         <div class="video-container">
             <div class="video-box">
                 <h2>患者视频</h2>
-                <video id="patient-video" autoplay></video>
+                <img id="patient-video" alt="患者视频">
             </div>
             <div class="video-box">
                 <h2>我的视频</h2>
@@ -238,7 +246,7 @@
         toggleAudioBtn.style.cursor = 'pointer';
         document.body.appendChild(toggleAudioBtn);
 
-        // 处理视频流
+        // 处理视频流 - 使用Canvas捕获帧并发送JPEG格式
         navigator.mediaDevices.getUserMedia({ video: true, audio: audioEnabled })
             .then(stream => {
                 doctorVideo.srcObject = stream;
@@ -254,32 +262,31 @@
                     toggleAudioBtn.style.backgroundColor = audioEnabled ? '#4CAF50' : '#f44336';
                 });
                 
-                // 发送视频流
-                const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+                // 创建Canvas用于捕获视频帧
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = 640;
+                canvas.height = 480;
                 
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        const reader = new FileReader();
-                        reader.onload = (e) => {
-                            const base64data = e.target.result.split(',')[1];
-                            socket.emit('video_frame', base64data);
-                        };
-                        reader.readAsDataURL(event.data);
+                // 定期发送视频帧
+                setInterval(() => {
+                    if (doctorVideo.readyState === doctorVideo.HAVE_ENOUGH_DATA) {
+                        // 在Canvas上绘制视频帧
+                        ctx.drawImage(doctorVideo, 0, 0, canvas.width, canvas.height);
+                        // 转换为JPEG格式的base64
+                        const base64data = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+                        socket.emit('video_frame', base64data);
                     }
-                };
-                
-                mediaRecorder.start(100); // 每100ms发送一次
+                }, 100); // 每100ms发送一次（约10fps）
             })
             .catch(error => {
                 console.error('Error accessing media devices:', error);
             });
         
-        // 接收视频流
+        // 接收视频流（JPEG格式）
         socket.on('video_frame', (data) => {
-            const blob = new Blob([Uint8Array.from(atob(data), c => c.charCodeAt(0))], { type: 'video/webm' });
-            const url = URL.createObjectURL(blob);
-            patientVideo.srcObject = null;
-            patientVideo.src = url;
+            // 直接将base64图片数据设置为img标签的src
+            patientVideo.src = 'data:image/jpeg;base64,' + data;
         });
         
         // 处理音频流

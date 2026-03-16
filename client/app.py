@@ -114,21 +114,12 @@ def send_audio():
 # 接收视频流
 @sio.on('video_frame')
 def receive_video(data):
-    # 将base64编码转换为帧
+    # 将base64编码转换为帧 - 仅在控制台显示接收状态，不显示窗口
     frame = base64_to_frame(data)
     if frame is not None:
-        key = show_frame('Doctor Video', frame)
-        if key == ord('q'):
-            sio.disconnect()
-            if has_camera and cap is not None:
-                release_camera(cap)
-            # 检查音频流是否已初始化
-            try:
-                close_audio_stream(audio, stream)
-            except:
-                pass
-            cv2.destroyAllWindows()
-            exit()
+        # 不再使用OpenCV窗口显示，避免与GUI客户端冲突
+        # 如果需要查看视频，请使用gui_client.py
+        pass
 
 # 接收音频流
 @sio.on('audio_frame')
