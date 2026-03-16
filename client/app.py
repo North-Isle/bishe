@@ -3,6 +3,7 @@ import cv2
 import socketio
 import threading
 import numpy as np
+import webbrowser
 from config import SERVER_HOST, SERVER_PORT, VIDEO_WIDTH, VIDEO_HEIGHT, VIDEO_FPS
 from utils.video_utils import capture_frame, frame_to_base64, base64_to_frame, show_frame, init_camera, release_camera
 from utils.audio_utils import init_audio_stream, read_audio, audio_to_base64, close_audio_stream
@@ -144,6 +145,10 @@ def send_message():
 if __name__ == '__main__':
     # 连接到服务器
     connect_to_server()
+    
+    # 自动打开浏览器
+    print(f"正在打开浏览器，访问 http://{SERVER_HOST}:{SERVER_PORT}/patient")
+    webbrowser.open(f'http://{SERVER_HOST}:{SERVER_PORT}/patient')
     
     # 启动视频发送线程
     video_thread = threading.Thread(target=send_video)
