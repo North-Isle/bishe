@@ -33,20 +33,29 @@ def patient():
 # 接收视频流
 @socketio.on('video_frame')
 def handle_video_frame(data):
-    # 广播视频帧给所有连接的客户端
-    emit('video_frame', data, broadcast=True, include_self=False)
+    try:
+        # 广播视频帧给所有连接的客户端
+        emit('video_frame', data, broadcast=True, include_self=False)
+    except Exception as e:
+        print(f"处理视频帧错误: {e}")
 
 # 接收音频流
 @socketio.on('audio_frame')
 def handle_audio_frame(data):
-    # 广播音频帧给所有连接的客户端
-    emit('audio_frame', data, broadcast=True, include_self=False)
+    try:
+        # 广播音频帧给所有连接的客户端
+        emit('audio_frame', data, broadcast=True, include_self=False)
+    except Exception as e:
+        print(f"处理音频帧错误: {e}")
 
 # 接收聊天消息
 @socketio.on('chat_message')
 def handle_chat_message(data):
-    # 广播聊天消息给所有连接的客户端
-    emit('chat_message', data, broadcast=True)
+    try:
+        # 广播聊天消息给所有连接的客户端
+        emit('chat_message', data, broadcast=True)
+    except Exception as e:
+        print(f"处理聊天消息错误: {e}")
 
 # 保存问诊记录
 @socketio.on('save_consultation')

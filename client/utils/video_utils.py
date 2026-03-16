@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import base64
+import subprocess
 
 # 尝试导入picamera2库，用于树莓派5的摄像头
 picamera2_available = False
@@ -11,8 +12,37 @@ try:
 except ImportError:
     print("picamera2库未安装，将使用传统的cv2.VideoCapture")
 
+# 检查rpicam-vid命令是否可用
+def is_rpicam_available():
+    try:
+        subprocess.run(["rpicam-vid", "--version"], capture_output=True, text=True, check=True)
+        return True
+    except:
+        return False
+
+# rpicam-vid命令是否可用
+rpicam_available = is_rpicam_available()
+
 def capture_frame(cap):
-    if picamera2_available and hasattr(cap, 'capture_array'):
+    if isinstance(cap, subprocess.Popen):
+        # 使用rpicam-vid捕获帧
+        try:
+            # 读取一帧数据
+            frame_data = cap.stdout.read(1024*1024)
+            if frame_data:
+                # 提取JPEG数据（移除HTTP头部）
+                frame_start = frame_data.find(b'\xff\xd8')
+                frame_end = frame_data.rfind(b'\xff\xd9') + 2
+                if frame_start != -1 and frame_end != -1:
+                    jpeg_data = frame_data[frame_start:frame_end]
+                    # 解码JPEG数据
+                    frame = cv2.imdecode(np.frombuffer(jpeg_data, np.uint8), cv2.IMREAD_COLOR)
+                    return True, frame
+            return False, None
+        except Exception as e:
+            print(f"使用rpicam-vid捕获帧失败: {e}")
+            return False, None
+    elif picamera2_available and hasattr(cap, 'capture_array'):
         # 使用picamera2捕获帧
         frame = cap.capture_array()
         # 转换颜色空间，从RGB到BGR（OpenCV使用BGR）
@@ -24,7 +54,33 @@ def capture_frame(cap):
         return ret, frame
 
 def init_camera(width, height, fps):
-    """初始化摄像头，优先使用picamera2（树莓派5）， fallback到cv2.VideoCapture"""
+    """初始化摄像头，优先使用rpicam-vid（树莓派5），然后是picamera2，最后是cv2.VideoCapture"""
+    if rpicam_available:
+        try:
+            # 初始化rpicam-vid命令
+            cmd = [
+                "rpicam-vid",
+                "-t", "0",
+                "--camera", "0",
+                "--width", str(width),
+                "--height", str(height),
+                "--framerate", str(fps),
+                "--codec", "mjpeg",
+                "--output", "-"
+            ]
+            
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                bufsize=0
+            )
+            print("使用rpicam-vid成功初始化摄像头")
+            return process
+        except Exception as e:
+            print(f"使用rpicam-vid初始化摄像头失败: {e}")
+            # 失败后尝试使用picamera2
+            pass
+    
     if picamera2_available:
         try:
             # 初始化Picamera2
@@ -67,7 +123,14 @@ def init_camera(width, height, fps):
 def release_camera(cap):
     """释放摄像头资源"""
     if cap is not None:
-        if picamera2_available and hasattr(cap, 'stop'):
+        if isinstance(cap, subprocess.Popen):
+            # 终止rpicam-vid进程
+            cap.terminate()
+            try:
+                cap.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                cap.kill()
+        elif picamera2_available and hasattr(cap, 'stop'):
             # 停止picamera2
             cap.stop()
         else:

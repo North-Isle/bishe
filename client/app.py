@@ -77,9 +77,17 @@ def connect_to_server():
 def send_video():
     while True:
         if has_camera and cap is not None:
-            ret, frame = capture_frame(cap)
-            if ret:
-                # 将帧转换为base64编码
+            try:
+                ret, frame = capture_frame(cap)
+                if ret and frame is not None:
+                    # 将帧转换为base64编码
+                    jpg_as_text = frame_to_base64(frame)
+                    if jpg_as_text:
+                        sio.emit('video_frame', jpg_as_text)
+            except Exception as e:
+                print(f"发送视频错误: {e}")
+                # 使用默认帧
+                frame = get_default_frame()
                 jpg_as_text = frame_to_base64(frame)
                 sio.emit('video_frame', jpg_as_text)
         else:
