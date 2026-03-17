@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QLabel, QPushButton, QTextEdit, 
                              QLineEdit, QSplitter, QFrame, QStatusBar,
                              QDialog, QTabWidget, QFormLayout, QMessageBox,
-                             QStackedWidget, QGroupBox)
+                             QStackedWidget, QGroupBox, QScrollArea)
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QObject
 from PyQt5.QtGui import QImage, QPixmap, QFont
 from config import SERVER_HOST, SERVER_PORT, VIDEO_WIDTH, VIDEO_HEIGHT, VIDEO_FPS
@@ -60,8 +60,25 @@ class LoginWindow(QMainWindow):
         title.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(title)
         
+        # 创建滚动区域
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        
+        # 创建内容widget
+        content_widget = QWidget()
+        scroll.setWidget(content_widget)
+        
+        # 内容layout
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setSpacing(15)
+        content_layout.setContentsMargins(10, 10, 10, 10)
+        
         self.tab_widget = QTabWidget()
-        main_layout.addWidget(self.tab_widget)
+        content_layout.addWidget(self.tab_widget)
+        
+        main_layout.addWidget(scroll)
         
         login_tab = QWidget()
         login_layout = QVBoxLayout(login_tab)

@@ -1,7 +1,10 @@
 # 音频处理工具函数
 import pyaudio
 import base64
-from config import AUDIO_RATE, AUDIO_CHANNELS, AUDIO_FORMAT, AUDIO_CHUNK
+from config import AUDIO_RATE, AUDIO_CHANNELS, AUDIO_CHUNK
+
+# 音频格式
+AUDIO_FORMAT = pyaudio.paInt16
 
 # 初始化音频流
 def init_audio_stream():

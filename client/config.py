@@ -12,5 +12,4 @@ VIDEO_FPS = 15      # 从30降低到15，减少网络带宽占用
 # 音频流配置
 AUDIO_RATE = 22050  # 从44100降低到22050，减少带宽
 AUDIO_CHANNELS = 1
-AUDIO_FORMAT = 1  # 16位PCM
 AUDIO_CHUNK = 1024
