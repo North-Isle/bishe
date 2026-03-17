@@ -265,6 +265,12 @@ class LoginWindow(QMainWindow):
             QMessageBox.warning(self, "错误", "摄像头不可用")
             return
         
+        # 检查人脸识别功能是否可用
+        if not is_face_recognition_available():
+            self.face_status_label.setText("状态: 人脸识别功能未启用")
+            self.face_status_label.setStyleSheet("color: #f39c12;")
+            return
+            
         try:
             ret, frame = capture_frame(self.cap)
             if ret and frame is not None:

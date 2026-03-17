@@ -4,20 +4,57 @@ import numpy as np
 import base64
 import requests
 import json
+import sys
 
+# 尝试导入face_recognition库并检查版本兼容性
+FACE_RECOGNITION_AVAILABLE = False
+FACE_RECOGNITION_VERSION = None
 try:
     import face_recognition
     FACE_RECOGNITION_AVAILABLE = True
-except ImportError:
+    FACE_RECOGNITION_VERSION = getattr(face_recognition, '__version__', 'unknown')
+    print(f"成功加载face_recognition库，版本: {FACE_RECOGNITION_VERSION}")
+except ImportError as e:
     FACE_RECOGNITION_AVAILABLE = False
-    print("face_recognition库未安装，将使用OpenCV进行人脸检测")
+    print(f"face_recognition库未安装: {e}")
+except Exception as e:
+    FACE_RECOGNITION_AVAILABLE = False
+    print(f"加载face_recognition库时发生错误: {e}")
+    import traceback
+    traceback.print_exc()
 
 face_cascade = None
 
 def init_face_detector():
     global face_cascade
     if face_cascade is None:
-        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        # 尝试多种方式加载Haar级联分类器
+        cascade_paths = [
+            # 方法1: 使用cv2.data（OpenCV 4.0+）
+            getattr(cv2, 'data', None) and (cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'),
+            # 方法2: 标准系统路径
+            '/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml',
+            '/usr/local/share/opencv4/haarcascades/haarcascade_frontalface_default.xml',
+            'C:/opencv/sources/data/haarcascades/haarcascade_frontalface_default.xml',
+            # 方法3: 当前目录相对路径
+            'haarcascade_frontalface_default.xml',
+            './utils/haarcascade_frontalface_default.xml'
+        ]
+        
+        for path in cascade_paths:
+            if path:
+                try:
+                    face_cascade = cv2.CascadeClassifier(path)
+                    if face_cascade.empty():
+                        face_cascade = None
+                    else:
+                        print(f"成功加载Haar级联分类器: {path}")
+                        break
+                except Exception as e:
+                    print(f"尝试加载{path}失败: {e}")
+        
+        if face_cascade is None:
+            print("警告: 无法加载Haar级联分类器，人脸检测功能将不可用")
     return face_cascade
 
 def detect_faces(frame):
@@ -27,6 +64,9 @@ def detect_faces(frame):
         return face_locations
     else:
         cascade = init_face_detector()
+        if cascade is None:
+            # 如果无法加载级联分类器，返回空列表
+            return []
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
         face_locations = [(y, x + w, y + h, x) for (x, y, w, h) in faces]
@@ -36,16 +76,40 @@ def get_face_encoding(frame, face_location=None):
     if not FACE_RECOGNITION_AVAILABLE:
         return None
     
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    
-    if face_location:
-        face_encodings = face_recognition.face_encodings(rgb_frame, [face_location])
-    else:
-        face_encodings = face_recognition.face_encodings(rgb_frame)
-    
-    if len(face_encodings) > 0:
-        return face_encodings[0].tolist()
-    return None
+    try:
+        # 将BGR格式转换为RGB格式
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        
+        # 获取人脸编码
+        if face_location:
+            # 确保face_location是正确的格式
+            if isinstance(face_location, (list, tuple)) and len(face_location) == 4:
+                face_encodings = face_recognition.face_encodings(rgb_frame, [face_location])
+            else:
+                print(f"无效的人脸位置格式: {face_location}")
+                return None
+        else:
+            face_encodings = face_recognition.face_encodings(rgb_frame)
+        
+        # 检查结果
+        if len(face_encodings) > 0:
+            encoding = face_encodings[0]
+            # 确保返回的是可序列化的列表
+            if hasattr(encoding, 'tolist'):
+                return encoding.tolist()
+            elif isinstance(encoding, list):
+                return encoding
+            else:
+                print(f"未知的人脸编码格式: {type(encoding)}")
+                return None
+        else:
+            print("未检测到人脸编码")
+            return None
+    except Exception as e:
+        print(f"获取人脸编码时出错: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 def draw_face_box(frame, face_location, color=(0, 255, 0), label=None):
     top, right, bottom, left = face_location

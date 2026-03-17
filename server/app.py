@@ -5,6 +5,10 @@ import cv2
 import numpy as np
 import base64
 import pickle
+
+# 不使用face_recognition库，只使用自定义实现
+face_recognition_available = False
+print("使用自定义的人脸距离计算实现")
 from database import (add_consultation, get_all_consultations, delete_consultation,
                       add_user, get_all_users, delete_user, get_user_by_username,
                       add_face_data, get_all_faces, delete_face_data, get_all_face_encodings,
@@ -167,22 +171,42 @@ def api_face_recognize():
     
     for face_id, user_id, stored_encoding in all_faces:
         stored_encoding = pickle.loads(stored_encoding)
-        match = face_distance(stored_encoding, input_encoding) < 0.6
-        if match:
-            user = get_user_by_id(user_id)
-            return jsonify({
-                'success': True,
-                'user': {
-                    'id': user.id,
-                    'username': user.username,
-                    'real_name': user.real_name,
-                    'role': user.role
-                } if user else None
-            })
+        
+        try:
+            # 确保存储的编码是numpy数组
+            if isinstance(stored_encoding, list):
+                stored_encoding = np.array(stored_encoding)
+            elif not isinstance(stored_encoding, np.ndarray):
+                print(f"未知的人脸编码格式: {type(stored_encoding)}")
+                continue
+            
+            # 计算欧氏距离
+            distance = np.linalg.norm(stored_encoding - input_encoding)
+            
+            # 检查匹配阈值
+            match_threshold = 0.6  # 自定义实现的阈值
+            if distance < match_threshold:
+                user = get_user_by_id(user_id)
+                if user:
+                    return jsonify({
+                        'success': True,
+                        'user': {
+                            'id': user.id,
+                            'username': user.username,
+                            'real_name': user.real_name,
+                            'role': user.role
+                        },
+                        'distance': float(distance)  # 调试信息
+                    })
+        except Exception as e:
+            print(f"比较人脸编码时出错: {e}")
+            import traceback
+            traceback.print_exc()
     
     return jsonify({'success': False, 'message': '人脸识别失败'})
 
 def face_distance(face_encodings, face_to_compare):
+    """计算人脸编码之间的距离"""
     if len(face_encodings) == 0:
         return np.empty((0))
     return np.linalg.norm(face_encodings - face_to_compare, axis=1)
