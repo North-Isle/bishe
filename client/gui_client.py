@@ -2,8 +2,10 @@
 import sys
 import os
 
-# 注释掉环境变量设置，让PyQt5能够正常显示图形界面
-# os.environ["QT_QPA_PLATFORM"] = "offscreen"
+# 设置环境变量避免OpenCV的Qt插件与PyQt5冲突
+# 移除OpenCV自带的Qt插件路径，使用系统Qt库
+os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH", None)
+os.environ.pop("QT_QPA_PLATFORM", None)
 
 import cv2
 import socketio
