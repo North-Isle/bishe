@@ -500,7 +500,7 @@ class VideoCallClient(QMainWindow):
         doctor_layout.addWidget(doctor_label)
         
         self.remote_video_label = QLabel()
-        self.remote_video_label.setMinimumSize(320, 240)  # 调整为与病人视频相同的尺寸
+        self.remote_video_label.setFixedSize(320, 240)  # 设置固定尺寸，确保不会改变
         self.remote_video_label.setStyleSheet("""
             background-color: #2a2a2a; 
             border-radius: 4px;
@@ -533,7 +533,7 @@ class VideoCallClient(QMainWindow):
         patient_layout.addLayout(patient_header)
         
         self.local_video_label = QLabel()
-        self.local_video_label.setMinimumSize(320, 240)  # 确保与医生视频相同的尺寸
+        self.local_video_label.setFixedSize(320, 240)  # 设置固定尺寸，确保与医生视频相同大小
         self.local_video_label.setStyleSheet("""
             background-color: #2a2a2a; 
             border-radius: 4px;
@@ -778,11 +778,8 @@ class VideoCallClient(QMainWindow):
     def update_local_video(self, frame):
         if frame is not None:
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            # 获取当前视频标签的尺寸
-            label_width = self.local_video_label.width()
-            label_height = self.local_video_label.height()
-            # 调整视频帧大小以匹配标签尺寸
-            rgb_frame = cv2.resize(rgb_frame, (label_width, label_height))
+            # 固定尺寸320x240
+            rgb_frame = cv2.resize(rgb_frame, (320, 240))
             h, w, ch = rgb_frame.shape
             bytes_per_line = ch * w
             qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
@@ -792,11 +789,8 @@ class VideoCallClient(QMainWindow):
     def update_remote_video(self, frame):
         if frame is not None:
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            # 获取当前视频标签的尺寸
-            label_width = self.remote_video_label.width()
-            label_height = self.remote_video_label.height()
-            # 调整视频帧大小以匹配标签尺寸
-            rgb_frame = cv2.resize(rgb_frame, (label_width, label_height))
+            # 固定尺寸320x240
+            rgb_frame = cv2.resize(rgb_frame, (320, 240))
             h, w, ch = rgb_frame.shape
             bytes_per_line = ch * w
             qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
