@@ -2,6 +2,11 @@
 # 推荐使用 run_client.py 启动图形界面
 # 此文件保留作为备用命令行版本
 
+import os
+
+# 设置环境变量以避免OpenCV的Qt平台插件冲突
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
 import cv2
 import socketio
 import threading

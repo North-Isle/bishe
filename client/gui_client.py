@@ -1,5 +1,10 @@
 # 树莓派客户端桌面应用程序（PyQt5）
 import sys
+import os
+
+# 设置环境变量以避免OpenCV的Qt平台插件冲突
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
 import cv2
 import socketio
 import threading
