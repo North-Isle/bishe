@@ -39,7 +39,7 @@ class LoginWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("远程医疗系统 - 登录")
-        self.resize(700, 750)
+        self.resize(1100, 550)
         self.current_user = None
         self.face_encoding = None
         self.face_timer = None
