@@ -2,9 +2,21 @@
 import sys
 import os
 
-# 移除OpenCV的Qt插件路径，避免与PyQt5冲突
-os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH", None)
+# 解决OpenCV的Qt插件与PyQt5冲突的问题
+# 设置Qt平台插件路径为系统默认值
+if "QT_QPA_PLATFORM_PLUGIN_PATH" in os.environ:
+    del os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"]
 
+# 禁用OpenCV的GUI功能，避免Qt冲突
+os.environ["OPENCV_DISABLE_FILESYSTEM_SUPPORT"] = "1"
+os.environ["OPENCV_UI_ENABLED"] = "0"
+
+# 设置Qt平台
+if sys.platform == "linux" or sys.platform == "linux2":
+    # 尝试使用不同的Qt平台
+    os.environ["QT_QPA_PLATFORM"] = "xcb"
+
+# 导入OpenCV前确保环境变量已设置
 import cv2
 import socketio
 import threading
