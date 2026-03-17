@@ -12,6 +12,9 @@ try:
 except ImportError:
     print("picamera2库未安装，将使用传统的cv2.VideoCapture")
 
+# 用于存储Picamera2实例
+picamera2_instance = None
+
 # 检查rpicam-vid命令是否可用
 def is_rpicam_available():
     try:
@@ -24,45 +27,99 @@ def is_rpicam_available():
 rpicam_available = is_rpicam_available()
 
 def capture_frame(cap):
-    # 只使用cv2.VideoCapture捕获帧
+    """捕获视频帧，支持cv2.VideoCapture和Picamera2实例"""
     try:
+        # 检查是否是Picamera2实例
+        if hasattr(cap, 'capture_array'):
+            try:
+                frame = cap.capture_array()
+                if frame is not None and frame.size > 0:
+                    return True, frame
+                return False, None
+            except Exception as e:
+                print(f"Picamera2捕获帧失败: {e}")
+                return False, None
+        
+        # 否则使用cv2.VideoCapture
         ret, frame = cap.read()
         return ret, frame
     except Exception as e:
         print(f"捕获帧失败: {e}")
+        import traceback
+        traceback.print_exc()
         return False, None
 
 def init_camera(width, height, fps):
-    """初始化摄像头，使用V4L2后端以避免GStreamer问题"""
+    """初始化摄像头，优先使用Picamera2（树莓派5），其次使用cv2.VideoCapture"""
+    global picamera2_instance
     try:
-        # 首先尝试使用V4L2后端
-        cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
-        if not cap.isOpened():
-            print("V4L2后端失败，尝试默认后端")
-            cap.release()
-            # 尝试默认后端
-            cap = cv2.VideoCapture(0)
+        # 优先尝试使用Picamera2（树莓派5推荐）
+        if picamera2_available:
+            try:
+                picam2 = Picamera2()
+                config = picam2.create_video_configuration(
+                    main={"size": (width, height)}, 
+                    controls={"FrameRate": fps}
+                )
+                picam2.configure(config)
+                picam2.start()
+                picamera2_instance = picam2
+                print(f"使用Picamera2成功初始化摄像头 ({width}x{height} @ {fps}fps)")
+                return picam2  # 返回Picamera2实例
+            except Exception as e:
+                print(f"Picamera2初始化失败: {e}")
         
-        if cap.isOpened():
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-            cap.set(cv2.CAP_PROP_FPS, fps)
-            print(f"使用cv2.VideoCapture成功初始化摄像头 ({width}x{height} @ {fps}fps)")
-            return cap
-        else:
-            print("使用cv2.VideoCapture初始化摄像头失败")
-            return None
+        # 如果Picamera2不可用或失败，尝试使用cv2.VideoCapture
+        print("尝试使用cv2.VideoCapture初始化摄像头...")
+        # 对于树莓派，尝试使用不同的后端
+        backends = [
+            cv2.CAP_V4L2,
+            cv2.CAP_GSTREAMER,
+            cv2.CAP_FFMPEG,
+            cv2.CAP_ANY
+        ]
+        
+        for backend in backends:
+            try:
+                cap = cv2.VideoCapture(0, backend)
+                if cap.isOpened():
+                    # 设置参数
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                    cap.set(cv2.CAP_PROP_FPS, fps)
+                    print(f"使用cv2.VideoCapture({backend})成功初始化摄像头 ({width}x{height} @ {fps}fps)")
+                    return cap
+                cap.release()
+            except Exception as e:
+                print(f"cv2.VideoCapture({backend})失败: {e}")
+        
+        print("所有摄像头初始化方法都失败了")
+        return None
     except Exception as e:
         print(f"初始化摄像头错误: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def release_camera(cap):
-    """释放摄像头资源"""
+    """释放摄像头资源，支持cv2.VideoCapture和Picamera2实例"""
+    global picamera2_instance
     if cap is not None:
         try:
-            cap.release()
+            # 检查是否是Picamera2实例
+            if hasattr(cap, 'stop'):
+                cap.stop()
+                cap.close()
+                picamera2_instance = None
+                print("Picamera2资源已释放")
+            else:
+                # 否则使用cv2.VideoCapture的release方法
+                cap.release()
+                print("cv2.VideoCapture资源已释放")
         except Exception as e:
             print(f"释放摄像头失败: {e}")
+            import traceback
+            traceback.print_exc()
 
 def frame_to_base64(frame):
     try:
