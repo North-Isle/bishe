@@ -33,15 +33,21 @@ def capture_frame(cap):
         return False, None
 
 def init_camera(width, height, fps):
-    """初始化摄像头，只使用cv2.VideoCapture以避免弹出预览窗口"""
-    # 直接使用cv2.VideoCapture，避免rpicam-vid和picamera2可能弹出的窗口
+    """初始化摄像头，使用V4L2后端以避免GStreamer问题"""
     try:
-        cap = cv2.VideoCapture(0)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-        cap.set(cv2.CAP_PROP_FPS, fps)
+        # 首先尝试使用V4L2后端
+        cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
+        if not cap.isOpened():
+            print("V4L2后端失败，尝试默认后端")
+            cap.release()
+            # 尝试默认后端
+            cap = cv2.VideoCapture(0)
+        
         if cap.isOpened():
-            print("使用cv2.VideoCapture成功初始化摄像头")
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+            cap.set(cv2.CAP_PROP_FPS, fps)
+            print(f"使用cv2.VideoCapture成功初始化摄像头 ({width}x{height} @ {fps}fps)")
             return cap
         else:
             print("使用cv2.VideoCapture初始化摄像头失败")

@@ -248,14 +248,8 @@ class LoginWindow(QMainWindow):
         try:
             ret, frame = capture_frame(self.cap)
             if ret and frame is not None:
+                # 简化处理，直接显示视频，不进行人脸检测以减少内存使用
                 small_frame = cv2.resize(frame, (300, 225))
-                
-                face_locations = detect_faces(small_frame)
-                
-                if len(face_locations) > 0:
-                    for loc in face_locations:
-                        draw_face_box(small_frame, loc, color=(0, 255, 0))
-                
                 rgb_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
                 h, w, ch = rgb_frame.shape
                 qt_image = QImage(rgb_frame.data, w, h, ch * w, QImage.Format_RGB888)
