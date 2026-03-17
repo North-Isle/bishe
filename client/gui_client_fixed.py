@@ -445,6 +445,9 @@ class VideoCallClient(QMainWindow):
         self.audio_enabled = False
         self.audio_output = None
         self.output_stream = None
+        # 添加音频流保护锁
+        import threading
+        self.audio_lock = threading.Lock()
         
         self.comm = Communicate()
         self.comm.new_local_frame.connect(self.update_local_video)
@@ -729,11 +732,18 @@ class VideoCallClient(QMainWindow):
     
     def init_audio_input(self):
         try:
-            self.audio, self.stream = init_audio_stream()
-            self.audio_enabled = True
-            self.audio_btn.setText("🔇 关闭音频")
-            self.update_status("音频已开启")
-            print("音频输入初始化成功")
+            audio, stream = init_audio_stream()
+            
+            if audio is not None and stream is not None:
+                with self.audio_lock:
+                    self.audio, self.stream = audio, stream
+                    self.audio_enabled = True
+                self.audio_btn.setText("🔇 关闭音频")
+                self.update_status("音频已开启")
+                print("音频输入初始化成功")
+            else:
+                self.update_status("音频设备不可用")
+                print("音频设备初始化失败")
         except Exception as e:
             self.update_status(f"音频开启失败: {e}")
             print(f"音频输入初始化错误: {e}")
@@ -758,39 +768,51 @@ class VideoCallClient(QMainWindow):
     
     def send_audio_loop(self):
         while self.audio_thread_running:
-            if self.audio_enabled and self.stream is not None:
-                try:
-                    data = read_audio(self.stream)
-                    audio_data = audio_to_base64(data)
-                    if self.sio.connected:
-                        self.sio.emit('audio_frame', audio_data)
-                except Exception as e:
-                    print(f"发送音频错误: {e}")
+            try:
+                with self.audio_lock:
+                    if self.audio_enabled and self.stream is not None:
+                        try:
+                            data = read_audio(self.stream)
+                            audio_data = audio_to_base64(data)
+                            if self.sio.connected:
+                                self.sio.emit('audio_frame', audio_data)
+                        except Exception as e:
+                            print(f"发送音频错误: {e}")
+                            # 如果发生错误，可能是流已关闭，重置状态
+                            with self.audio_lock:
+                                self.audio_enabled = False
+                                self.audio, self.stream = None, None
+            except Exception as e:
+                print(f"音频线程错误: {e}")
             import time
             time.sleep(0.01)
     
     def toggle_audio(self):
         if self.audio_enabled:
             try:
-                if self.audio is not None and self.stream is not None:
-                    close_audio_stream(self.audio, self.stream)
-                self.audio, self.stream = None, None
-                self.audio_enabled = False
+                with self.audio_lock:
+                    if self.audio is not None and self.stream is not None:
+                        close_audio_stream(self.audio, self.stream)
+                    self.audio, self.stream = None, None
+                    self.audio_enabled = False
                 self.audio_btn.setText("🎤 开启音频")
                 self.update_status("音频已关闭")
                 print("音频已关闭")
             except Exception as e:
                 print(f"关闭音频错误: {e}")
                 # 无论如何都要重置状态
-                self.audio, self.stream = None, None
-                self.audio_enabled = False
+                with self.audio_lock:
+                    self.audio, self.stream = None, None
+                    self.audio_enabled = False
                 self.audio_btn.setText("🎤 开启音频")
         else:
             try:
-                self.audio, self.stream = init_audio_stream()
+                audio, stream = init_audio_stream()
                 
-                if self.audio is not None and self.stream is not None:
-                    self.audio_enabled = True
+                if audio is not None and stream is not None:
+                    with self.audio_lock:
+                        self.audio, self.stream = audio, stream
+                        self.audio_enabled = True
                     self.audio_btn.setText("🔇 关闭音频")
                     self.update_status("音频已开启")
                     print("音频已开启")
