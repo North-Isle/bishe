@@ -160,7 +160,6 @@ def base64_to_frame(data):
         return None
 
 def show_frame(window_name, frame):
-    if frame is not None:
-        cv2.imshow(window_name, frame)
-        return cv2.waitKey(1) & 0xFF
+    """显示帧（仅返回默认值，不使用OpenCV GUI）"""
+    # 移除cv2.imshow和cv2.waitKey调用以避免Qt冲突
     return -1
