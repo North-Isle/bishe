@@ -772,7 +772,7 @@ class VideoCallClient(QMainWindow):
     def toggle_audio(self):
         if self.audio_enabled:
             try:
-                if self.stream:
+                if self.audio is not None and self.stream is not None:
                     close_audio_stream(self.audio, self.stream)
                 self.audio, self.stream = None, None
                 self.audio_enabled = False
@@ -781,13 +781,22 @@ class VideoCallClient(QMainWindow):
                 print("音频已关闭")
             except Exception as e:
                 print(f"关闭音频错误: {e}")
+                # 无论如何都要重置状态
+                self.audio, self.stream = None, None
+                self.audio_enabled = False
+                self.audio_btn.setText("🎤 开启音频")
         else:
             try:
                 self.audio, self.stream = init_audio_stream()
-                self.audio_enabled = True
-                self.audio_btn.setText("🔇 关闭音频")
-                self.update_status("音频已开启")
-                print("音频已开启")
+                
+                if self.audio is not None and self.stream is not None:
+                    self.audio_enabled = True
+                    self.audio_btn.setText("🔇 关闭音频")
+                    self.update_status("音频已开启")
+                    print("音频已开启")
+                else:
+                    self.update_status("音频设备不可用")
+                    print("音频设备初始化失败")
             except Exception as e:
                 self.update_status(f"音频开启失败: {e}")
                 print(f"音频初始化错误: {e}")
