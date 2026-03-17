@@ -525,23 +525,10 @@ class VideoCallClient(QMainWindow):
         patient_header.addWidget(user_info_label)
         patient_header.addStretch()
         
-        self.audio_btn = QPushButton("🎤 开启音频")
-        self.audio_btn.setCheckable(True)
-        self.audio_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                padding: 5px 15px;
-                border-radius: 4px;
-                font-size: 11px;
-            }
-            QPushButton:hover { background-color: #45a049; }
-            QPushButton:checked { background-color: #f44336; }
-            QPushButton:checked:hover { background-color: #da190b; }
-        """)
-        self.audio_btn.clicked.connect(self.toggle_audio)
-        patient_header.addWidget(self.audio_btn)
+        # 移除音频开关，直接显示音频状态
+        audio_status_label = QLabel("🎤 音频已开启")
+        audio_status_label.setStyleSheet("color: #4CAF50; font-size: 12px; font-weight: bold;")
+        patient_header.addWidget(audio_status_label)
         
         patient_layout.addLayout(patient_header)
         
@@ -738,7 +725,6 @@ class VideoCallClient(QMainWindow):
                 with self.audio_lock:
                     self.audio, self.stream = audio, stream
                     self.audio_enabled = True
-                self.audio_btn.setText("🔇 关闭音频")
                 self.update_status("音频已开启")
                 print("音频输入初始化成功")
             else:
@@ -787,41 +773,7 @@ class VideoCallClient(QMainWindow):
             import time
             time.sleep(0.01)
     
-    def toggle_audio(self):
-        if self.audio_enabled:
-            try:
-                with self.audio_lock:
-                    if self.audio is not None and self.stream is not None:
-                        close_audio_stream(self.audio, self.stream)
-                    self.audio, self.stream = None, None
-                    self.audio_enabled = False
-                self.audio_btn.setText("🎤 开启音频")
-                self.update_status("音频已关闭")
-                print("音频已关闭")
-            except Exception as e:
-                print(f"关闭音频错误: {e}")
-                # 无论如何都要重置状态
-                with self.audio_lock:
-                    self.audio, self.stream = None, None
-                    self.audio_enabled = False
-                self.audio_btn.setText("🎤 开启音频")
-        else:
-            try:
-                audio, stream = init_audio_stream()
-                
-                if audio is not None and stream is not None:
-                    with self.audio_lock:
-                        self.audio, self.stream = audio, stream
-                        self.audio_enabled = True
-                    self.audio_btn.setText("🔇 关闭音频")
-                    self.update_status("音频已开启")
-                    print("音频已开启")
-                else:
-                    self.update_status("音频设备不可用")
-                    print("音频设备初始化失败")
-            except Exception as e:
-                self.update_status(f"音频开启失败: {e}")
-                print(f"音频初始化错误: {e}")
+    # 移除音频开关功能，音频默认开启
     
     def update_local_video(self, frame):
         if frame is not None:
