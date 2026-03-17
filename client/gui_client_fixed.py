@@ -480,45 +480,47 @@ class VideoCallClient(QMainWindow):
         video_layout = QVBoxLayout(video_widget)
         video_layout.setSpacing(10)
         
-        remote_frame = QFrame()
-        remote_frame.setFrameStyle(QFrame.StyledPanel)
-        remote_frame.setStyleSheet("background-color: #1a1a1a; border-radius: 8px;")
-        remote_layout = QVBoxLayout(remote_frame)
+        # 创建视频容器，包含医生和病人的视频，平分显示
+        video_container = QFrame()
+        video_container.setFrameStyle(QFrame.StyledPanel)
+        video_container.setStyleSheet("background-color: #1a1a1a; border-radius: 8px;")
+        video_container_layout = QHBoxLayout(video_container)
+        video_container_layout.setSpacing(5)
         
-        remote_label = QLabel("医生画面")
-        remote_label.setStyleSheet("color: white; font-size: 14px; font-weight: bold;")
-        remote_label.setAlignment(Qt.AlignCenter)
-        remote_layout.addWidget(remote_label)
+        # 医生视频区域
+        doctor_area = QWidget()
+        doctor_layout = QVBoxLayout(doctor_area)
+        
+        doctor_label = QLabel("医生画面")
+        doctor_label.setStyleSheet("color: white; font-size: 14px; font-weight: bold;")
+        doctor_label.setAlignment(Qt.AlignCenter)
+        doctor_layout.addWidget(doctor_label)
         
         self.remote_video_label = QLabel()
-        self.remote_video_label.setMinimumSize(640, 480)
+        self.remote_video_label.setMinimumSize(320, 240)  # 调整为与病人视频相同的尺寸
         self.remote_video_label.setStyleSheet("""
             background-color: #2a2a2a; 
             border-radius: 4px;
             color: #888888;
-            font-size: 16px;
+            font-size: 14px;
         """)
         self.remote_video_label.setAlignment(Qt.AlignCenter)
         self.remote_video_label.setText("等待医生连接...")
-        remote_layout.addWidget(self.remote_video_label)
+        doctor_layout.addWidget(self.remote_video_label)
         
-        video_layout.addWidget(remote_frame)
+        # 病人视频区域
+        patient_area = QWidget()
+        patient_layout = QVBoxLayout(patient_area)
         
-        local_frame = QFrame()
-        local_frame.setFrameStyle(QFrame.StyledPanel)
-        local_frame.setStyleSheet("background-color: #1a1a1a; border-radius: 8px;")
-        local_layout = QVBoxLayout(local_frame)
-        local_layout.setContentsMargins(5, 5, 5, 5)
-        
-        local_header = QHBoxLayout()
-        local_label = QLabel("我的画面")
-        local_label.setStyleSheet("color: white; font-size: 12px; font-weight: bold;")
-        local_header.addWidget(local_label)
+        patient_header = QHBoxLayout()
+        patient_label = QLabel("我的画面")
+        patient_label.setStyleSheet("color: white; font-size: 14px; font-weight: bold;")
+        patient_header.addWidget(patient_label)
         
         user_info_label = QLabel(f"👤 {self.user_info.get('real_name', self.user_info.get('username', '用户'))}")
         user_info_label.setStyleSheet("color: #3498db; font-size: 12px;")
-        local_header.addWidget(user_info_label)
-        local_header.addStretch()
+        patient_header.addWidget(user_info_label)
+        patient_header.addStretch()
         
         self.audio_btn = QPushButton("🎤 开启音频")
         self.audio_btn.setCheckable(True)
@@ -536,23 +538,28 @@ class VideoCallClient(QMainWindow):
             QPushButton:checked:hover { background-color: #da190b; }
         """)
         self.audio_btn.clicked.connect(self.toggle_audio)
-        local_header.addWidget(self.audio_btn)
+        patient_header.addWidget(self.audio_btn)
         
-        local_layout.addLayout(local_header)
+        patient_layout.addLayout(patient_header)
         
         self.local_video_label = QLabel()
-        self.local_video_label.setFixedSize(320, 240)
+        self.local_video_label.setMinimumSize(320, 240)  # 确保与医生视频相同的尺寸
         self.local_video_label.setStyleSheet("""
             background-color: #2a2a2a; 
             border-radius: 4px;
             color: #888888;
-            font-size: 12px;
+            font-size: 14px;
         """)
         self.local_video_label.setAlignment(Qt.AlignCenter)
         self.local_video_label.setText("摄像头初始化中...")
-        local_layout.addWidget(self.local_video_label)
+        patient_layout.addWidget(self.local_video_label)
         
-        video_layout.addWidget(local_frame, alignment=Qt.AlignLeft)
+        # 将两个视频区域添加到容器中，平分空间
+        video_container_layout.addWidget(doctor_area, 1)  # 1表示权重，两个区域权重相同
+        video_container_layout.addWidget(patient_area, 1)
+        
+        # 将视频容器添加到主视频布局
+        video_layout.addWidget(video_container)
         
         splitter.addWidget(video_widget)
         
@@ -788,7 +795,11 @@ class VideoCallClient(QMainWindow):
     def update_local_video(self, frame):
         if frame is not None:
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            rgb_frame = cv2.resize(rgb_frame, (320, 240))
+            # 获取当前视频标签的尺寸
+            label_width = self.local_video_label.width()
+            label_height = self.local_video_label.height()
+            # 调整视频帧大小以匹配标签尺寸
+            rgb_frame = cv2.resize(rgb_frame, (label_width, label_height))
             h, w, ch = rgb_frame.shape
             bytes_per_line = ch * w
             qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
@@ -798,7 +809,11 @@ class VideoCallClient(QMainWindow):
     def update_remote_video(self, frame):
         if frame is not None:
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            rgb_frame = cv2.resize(rgb_frame, (640, 480))
+            # 获取当前视频标签的尺寸
+            label_width = self.remote_video_label.width()
+            label_height = self.remote_video_label.height()
+            # 调整视频帧大小以匹配标签尺寸
+            rgb_frame = cv2.resize(rgb_frame, (label_width, label_height))
             h, w, ch = rgb_frame.shape
             bytes_per_line = ch * w
             qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
