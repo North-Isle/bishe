@@ -4,17 +4,8 @@
 
 import os
 
-# 完全禁用OpenCV的GUI功能，避免与PyQt5冲突
-os.environ["OPENCV_DISABLE_FILESYSTEM_CACHE"] = "1"
-os.environ["OPENCV_VIDEOIO_PRIORITY_MSMF"] = "0"
-
-# 移除可能导致冲突的环境变量
+# 移除OpenCV的Qt插件路径，避免与PyQt5冲突
 os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH", None)
-os.environ.pop("QT_QPA_PLATFORM", None)
-os.environ.pop("QT_PLUGIN_PATH", None)
-
-# 强制使用系统的Qt库
-os.environ["LD_LIBRARY_PATH"] = "/usr/lib/arm-linux-gnueabihf:" + os.environ.get("LD_LIBRARY_PATH", "")
 
 import cv2
 import socketio

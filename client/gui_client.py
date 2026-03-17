@@ -2,17 +2,8 @@
 import sys
 import os
 
-# 完全禁用OpenCV的GUI功能，避免与PyQt5冲突
-os.environ["OPENCV_DISABLE_FILESYSTEM_CACHE"] = "1"
-os.environ["OPENCV_VIDEOIO_PRIORITY_MSMF"] = "0"
-
-# 移除可能导致冲突的环境变量
+# 移除OpenCV的Qt插件路径，避免与PyQt5冲突
 os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH", None)
-os.environ.pop("QT_QPA_PLATFORM", None)
-os.environ.pop("QT_PLUGIN_PATH", None)
-
-# 强制使用系统的Qt库
-os.environ["LD_LIBRARY_PATH"] = "/usr/lib/arm-linux-gnueabihf:" + os.environ.get("LD_LIBRARY_PATH", "")
 
 import cv2
 import socketio
@@ -48,7 +39,7 @@ class LoginWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("远程医疗系统 - 登录")
-        self.setGeometry(100, 100, 500, 600)
+        self.resize(800, 900)
         self.current_user = None
         self.face_encoding = None
         self.face_timer = None
@@ -385,7 +376,7 @@ class VideoCallClient(QMainWindow):
         super().__init__()
         self.user_info = user_info
         self.setWindowTitle(f"远程医疗系统 - {user_info.get('real_name', user_info.get('username', '用户'))}")
-        self.setGeometry(100, 100, 1200, 800)
+        self.resize(1400, 900)
         
         self.sio = socketio.Client()
         self.setup_socket_events()
