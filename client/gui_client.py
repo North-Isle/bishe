@@ -7,92 +7,418 @@ import numpy as np
 import base64
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLabel, QPushButton, QTextEdit, 
-                             QLineEdit, QSplitter, QFrame, QStatusBar)
+                             QLineEdit, QSplitter, QFrame, QStatusBar,
+                             QDialog, QTabWidget, QFormLayout, QMessageBox,
+                             QStackedWidget, QGroupBox)
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QObject
 from PyQt5.QtGui import QImage, QPixmap, QFont
 from config import SERVER_HOST, SERVER_PORT, VIDEO_WIDTH, VIDEO_HEIGHT, VIDEO_FPS
 from utils.video_utils import capture_frame, frame_to_base64, base64_to_frame, init_camera, release_camera
 from utils.audio_utils import init_audio_stream, read_audio, audio_to_base64, close_audio_stream, base64_to_audio
+from utils.face_utils import (detect_faces, get_face_encoding, draw_face_box,
+                              register_face_with_server, recognize_face_with_server,
+                              register_user_with_server, login_with_server,
+                              is_face_recognition_available)
 import pyaudio
 
 
-# 信号类，用于线程间通信
 class Communicate(QObject):
     new_local_frame = pyqtSignal(np.ndarray)
     new_remote_frame = pyqtSignal(np.ndarray)
     new_message = pyqtSignal(dict)
     connection_status = pyqtSignal(str)
+    face_detected = pyqtSignal(object)
+
+
+class LoginWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("远程医疗系统 - 登录")
+        self.setGeometry(100, 100, 500, 600)
+        self.current_user = None
+        self.face_encoding = None
+        self.face_timer = None
+        self.cap = None
+        self.init_ui()
+        self.init_camera()
+    
+    def init_ui(self):
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setSpacing(20)
+        main_layout.setContentsMargins(30, 30, 30, 30)
+        
+        title = QLabel("🏥 远程医疗系统")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #2c3e50;")
+        title.setAlignment(Qt.AlignCenter)
+        main_layout.addWidget(title)
+        
+        self.tab_widget = QTabWidget()
+        main_layout.addWidget(self.tab_widget)
+        
+        login_tab = QWidget()
+        login_layout = QVBoxLayout(login_tab)
+        login_layout.setSpacing(15)
+        
+        login_group = QGroupBox("账号密码登录")
+        login_form = QFormLayout(login_group)
+        
+        self.username_input = QLineEdit()
+        self.username_input.setPlaceholderText("请输入用户名")
+        login_form.addRow("用户名:", self.username_input)
+        
+        self.password_input = QLineEdit()
+        self.password_input.setPlaceholderText("请输入密码")
+        self.password_input.setEchoMode(QLineEdit.Password)
+        login_form.addRow("密码:", self.password_input)
+        
+        login_layout.addWidget(login_group)
+        
+        login_btn = QPushButton("登录")
+        login_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                padding: 12px;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover { background-color: #2980b9; }
+        """)
+        login_btn.clicked.connect(self.handle_login)
+        login_layout.addWidget(login_btn)
+        
+        face_login_group = QGroupBox("人脸登录")
+        face_login_layout = QVBoxLayout(face_login_group)
+        
+        self.face_login_video = QLabel()
+        self.face_login_video.setFixedSize(300, 225)
+        self.face_login_video.setStyleSheet("background-color: #2a2a2a; border-radius: 8px;")
+        self.face_login_video.setAlignment(Qt.AlignCenter)
+        self.face_login_video.setText("摄像头加载中...")
+        face_login_layout.addWidget(self.face_login_video, alignment=Qt.AlignCenter)
+        
+        self.face_login_btn = QPushButton("👤 人脸登录")
+        self.face_login_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #27ae60;
+                color: white;
+                padding: 12px;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover { background-color: #219a52; }
+        """)
+        self.face_login_btn.clicked.connect(self.handle_face_login)
+        face_login_layout.addWidget(self.face_login_btn)
+        
+        login_layout.addWidget(face_login_group)
+        login_layout.addStretch()
+        
+        self.tab_widget.addTab(login_tab, "登录")
+        
+        register_tab = QWidget()
+        register_layout = QVBoxLayout(register_tab)
+        register_layout.setSpacing(15)
+        
+        register_group = QGroupBox("注册新用户")
+        register_form = QFormLayout(register_group)
+        
+        self.reg_username = QLineEdit()
+        self.reg_username.setPlaceholderText("请输入用户名")
+        register_form.addRow("用户名:", self.reg_username)
+        
+        self.reg_password = QLineEdit()
+        self.reg_password.setPlaceholderText("请输入密码")
+        self.reg_password.setEchoMode(QLineEdit.Password)
+        register_form.addRow("密码:", self.reg_password)
+        
+        self.reg_real_name = QLineEdit()
+        self.reg_real_name.setPlaceholderText("请输入真实姓名")
+        register_form.addRow("姓名:", self.reg_real_name)
+        
+        self.reg_id_card = QLineEdit()
+        self.reg_id_card.setPlaceholderText("请输入身份证号")
+        register_form.addRow("身份证:", self.reg_id_card)
+        
+        register_layout.addWidget(register_group)
+        
+        face_reg_group = QGroupBox("人脸注册（可选）")
+        face_reg_layout = QVBoxLayout(face_reg_group)
+        
+        self.face_reg_video = QLabel()
+        self.face_reg_video.setFixedSize(300, 225)
+        self.face_reg_video.setStyleSheet("background-color: #2a2a2a; border-radius: 8px;")
+        self.face_reg_video.setAlignment(Qt.AlignCenter)
+        self.face_reg_video.setText("摄像头加载中...")
+        face_reg_layout.addWidget(self.face_reg_video, alignment=Qt.AlignCenter)
+        
+        self.capture_face_btn = QPushButton("📷 采集人脸")
+        self.capture_face_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #e67e22;
+                color: white;
+                padding: 10px;
+                border-radius: 6px;
+            }
+            QPushButton:hover { background-color: #d35400; }
+        """)
+        self.capture_face_btn.clicked.connect(self.capture_face)
+        face_reg_layout.addWidget(self.capture_face_btn)
+        
+        self.face_status_label = QLabel("状态: 等待采集人脸")
+        self.face_status_label.setStyleSheet("color: #7f8c8d;")
+        face_reg_layout.addWidget(self.face_status_label)
+        
+        register_layout.addWidget(face_reg_group)
+        
+        register_btn = QPushButton("注册")
+        register_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #9b59b6;
+                color: white;
+                padding: 12px;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover { background-color: #8e44ad; }
+        """)
+        register_btn.clicked.connect(self.handle_register)
+        register_layout.addWidget(register_btn)
+        
+        register_layout.addStretch()
+        
+        self.tab_widget.addTab(register_tab, "注册")
+        
+        self.status_bar = QStatusBar()
+        self.setStatusBar(self.status_bar)
+        self.status_bar.showMessage("请登录或注册")
+        
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #ecf0f1;
+            }
+        """)
+    
+    def init_camera(self):
+        try:
+            self.cap = init_camera(VIDEO_WIDTH, VIDEO_HEIGHT, VIDEO_FPS)
+            if self.cap:
+                self.face_timer = QTimer()
+                self.face_timer.timeout.connect(self.update_face_video)
+                self.face_timer.start(100)
+            else:
+                self.face_login_video.setText("摄像头不可用")
+                self.face_reg_video.setText("摄像头不可用")
+        except Exception as e:
+            self.face_login_video.setText(f"摄像头错误: {e}")
+            self.face_reg_video.setText(f"摄像头错误: {e}")
+    
+    def update_face_video(self):
+        if self.cap is None:
+            return
+        
+        try:
+            ret, frame = capture_frame(self.cap)
+            if ret and frame is not None:
+                small_frame = cv2.resize(frame, (300, 225))
+                
+                face_locations = detect_faces(small_frame)
+                
+                if len(face_locations) > 0:
+                    for loc in face_locations:
+                        draw_face_box(small_frame, loc, color=(0, 255, 0))
+                
+                rgb_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
+                h, w, ch = rgb_frame.shape
+                qt_image = QImage(rgb_frame.data, w, h, ch * w, QImage.Format_RGB888)
+                pixmap = QPixmap.fromImage(qt_image)
+                
+                self.face_login_video.setPixmap(pixmap)
+                self.face_reg_video.setPixmap(pixmap)
+        except Exception as e:
+            print(f"更新视频错误: {e}")
+    
+    def capture_face(self):
+        if self.cap is None:
+            QMessageBox.warning(self, "错误", "摄像头不可用")
+            return
+        
+        try:
+            ret, frame = capture_frame(self.cap)
+            if ret and frame is not None:
+                face_locations = detect_faces(frame)
+                if len(face_locations) == 0:
+                    self.face_status_label.setText("状态: 未检测到人脸")
+                    self.face_status_label.setStyleSheet("color: #e74c3c;")
+                    return
+                
+                if len(face_locations) > 1:
+                    self.face_status_label.setText("状态: 检测到多张人脸，请只保留一张")
+                    self.face_status_label.setStyleSheet("color: #e74c3c;")
+                    return
+                
+                face_encoding = get_face_encoding(frame, face_locations[0])
+                if face_encoding:
+                    self.face_encoding = face_encoding
+                    self.face_status_label.setText("状态: 人脸采集成功 ✓")
+                    self.face_status_label.setStyleSheet("color: #27ae60; font-weight: bold;")
+                else:
+                    self.face_status_label.setText("状态: 人脸特征提取失败")
+                    self.face_status_label.setStyleSheet("color: #e74c3c;")
+        except Exception as e:
+            self.face_status_label.setText(f"状态: 错误 - {e}")
+            self.face_status_label.setStyleSheet("color: #e74c3c;")
+    
+    def handle_login(self):
+        username = self.username_input.text().strip()
+        password = self.password_input.text().strip()
+        
+        if not username or not password:
+            QMessageBox.warning(self, "提示", "请输入用户名和密码")
+            return
+        
+        success, result = login_with_server(SERVER_HOST, SERVER_PORT, username, password)
+        if success:
+            self.current_user = result
+            self.open_main_window()
+        else:
+            QMessageBox.warning(self, "登录失败", str(result))
+    
+    def handle_face_login(self):
+        if self.cap is None:
+            QMessageBox.warning(self, "错误", "摄像头不可用")
+            return
+        
+        if not is_face_recognition_available():
+            QMessageBox.warning(self, "提示", "人脸识别功能需要安装 face_recognition 库\n请运行: pip install face_recognition")
+            return
+        
+        try:
+            ret, frame = capture_frame(self.cap)
+            if ret and frame is not None:
+                face_locations = detect_faces(frame)
+                if len(face_locations) == 0:
+                    QMessageBox.warning(self, "提示", "未检测到人脸")
+                    return
+                
+                face_encoding = get_face_encoding(frame, face_locations[0])
+                if face_encoding:
+                    success, result = recognize_face_with_server(SERVER_HOST, SERVER_PORT, face_encoding)
+                    if success:
+                        self.current_user = result
+                        self.open_main_window()
+                    else:
+                        QMessageBox.warning(self, "人脸登录失败", str(result))
+                else:
+                    QMessageBox.warning(self, "提示", "无法提取人脸特征")
+        except Exception as e:
+            QMessageBox.warning(self, "错误", f"人脸登录失败: {e}")
+    
+    def handle_register(self):
+        username = self.reg_username.text().strip()
+        password = self.reg_password.text().strip()
+        real_name = self.reg_real_name.text().strip()
+        id_card = self.reg_id_card.text().strip()
+        
+        if not username or not password:
+            QMessageBox.warning(self, "提示", "用户名和密码不能为空")
+            return
+        
+        success, result = register_user_with_server(SERVER_HOST, SERVER_PORT, username, password, real_name, id_card)
+        if success:
+            user_id = result
+            if self.face_encoding:
+                face_success, face_msg = register_face_with_server(SERVER_HOST, SERVER_PORT, user_id, self.face_encoding)
+                if face_success:
+                    QMessageBox.information(self, "成功", "注册成功，人脸已绑定！")
+                else:
+                    QMessageBox.information(self, "成功", f"注册成功，但人脸绑定失败: {face_msg}")
+            else:
+                QMessageBox.information(self, "成功", "注册成功！")
+            
+            self.tab_widget.setCurrentIndex(0)
+            self.username_input.setText(username)
+            self.password_input.setFocus()
+        else:
+            QMessageBox.warning(self, "注册失败", str(result))
+    
+    def open_main_window(self):
+        if self.face_timer:
+            self.face_timer.stop()
+        if self.cap:
+            release_camera(self.cap)
+        
+        self.main_window = VideoCallClient(self.current_user)
+        self.main_window.show()
+        self.close()
+    
+    def closeEvent(self, event):
+        if self.face_timer:
+            self.face_timer.stop()
+        if self.cap:
+            release_camera(self.cap)
+        event.accept()
 
 
 class VideoCallClient(QMainWindow):
-    def __init__(self):
+    def __init__(self, user_info):
         super().__init__()
-        self.setWindowTitle("远程医疗系统 - 患者端")
+        self.user_info = user_info
+        self.setWindowTitle(f"远程医疗系统 - {user_info.get('real_name', user_info.get('username', '用户'))}")
         self.setGeometry(100, 100, 1200, 800)
         
-        # 初始化SocketIO客户端
         self.sio = socketio.Client()
         self.setup_socket_events()
         
-        # 视频捕获对象
         self.cap = None
         self.has_camera = False
         
-        # 音频相关
         self.audio = None
         self.stream = None
         self.audio_enabled = False
         self.audio_output = None
         self.output_stream = None
         
-        # 通信信号
         self.comm = Communicate()
         self.comm.new_local_frame.connect(self.update_local_video)
         self.comm.new_remote_frame.connect(self.update_remote_video)
         self.comm.new_message.connect(self.receive_message)
         self.comm.connection_status.connect(self.update_status)
         
-        # 初始化UI
         self.init_ui()
-        
-        # 初始化摄像头
         self.init_camera()
-        
-        # 初始化音频播放
         self.init_audio_output()
-        
-        # 连接服务器
+        self.init_audio_input()
         self.connect_to_server()
         
-        # 启动视频发送定时器
         self.video_timer = QTimer()
         self.video_timer.timeout.connect(self.send_video_frame)
-        self.video_timer.start(66)  # 约15fps，与VIDEO_FPS匹配
+        self.video_timer.start(66)
         
-        # 启动音频发送线程
         self.audio_thread_running = False
         self.start_audio_thread()
     
     def init_ui(self):
-        # 创建中央部件
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
-        # 主布局
         main_layout = QHBoxLayout(central_widget)
         main_layout.setSpacing(10)
         main_layout.setContentsMargins(10, 10, 10, 10)
         
-        # 创建分割器
         splitter = QSplitter(Qt.Horizontal)
         main_layout.addWidget(splitter)
         
-        # ===== 左侧：视频区域 =====
         video_widget = QWidget()
         video_layout = QVBoxLayout(video_widget)
         video_layout.setSpacing(10)
         
-        # 远程视频（医生画面）
         remote_frame = QFrame()
         remote_frame.setFrameStyle(QFrame.StyledPanel)
         remote_frame.setStyleSheet("background-color: #1a1a1a; border-radius: 8px;")
@@ -105,20 +431,18 @@ class VideoCallClient(QMainWindow):
         
         self.remote_video_label = QLabel()
         self.remote_video_label.setMinimumSize(640, 480)
-        self.remote_video_label.setStyleSheet("background-color: #2a2a2a; border-radius: 4px;")
-        self.remote_video_label.setAlignment(Qt.AlignCenter)
-        self.remote_video_label.setText("等待医生连接...")
         self.remote_video_label.setStyleSheet("""
             background-color: #2a2a2a; 
             border-radius: 4px;
             color: #888888;
             font-size: 16px;
         """)
+        self.remote_video_label.setAlignment(Qt.AlignCenter)
+        self.remote_video_label.setText("等待医生连接...")
         remote_layout.addWidget(self.remote_video_label)
         
         video_layout.addWidget(remote_frame)
         
-        # 本地视频（患者画面）
         local_frame = QFrame()
         local_frame.setFrameStyle(QFrame.StyledPanel)
         local_frame.setStyleSheet("background-color: #1a1a1a; border-radius: 8px;")
@@ -129,6 +453,10 @@ class VideoCallClient(QMainWindow):
         local_label = QLabel("我的画面")
         local_label.setStyleSheet("color: white; font-size: 12px; font-weight: bold;")
         local_header.addWidget(local_label)
+        
+        user_info_label = QLabel(f"👤 {self.user_info.get('real_name', self.user_info.get('username', '用户'))}")
+        user_info_label.setStyleSheet("color: #3498db; font-size: 12px;")
+        local_header.addWidget(user_info_label)
         local_header.addStretch()
         
         self.audio_btn = QPushButton("🎤 开启音频")
@@ -142,15 +470,9 @@ class VideoCallClient(QMainWindow):
                 border-radius: 4px;
                 font-size: 11px;
             }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-            QPushButton:checked {
-                background-color: #f44336;
-            }
-            QPushButton:checked:hover {
-                background-color: #da190b;
-            }
+            QPushButton:hover { background-color: #45a049; }
+            QPushButton:checked { background-color: #f44336; }
+            QPushButton:checked:hover { background-color: #da190b; }
         """)
         self.audio_btn.clicked.connect(self.toggle_audio)
         local_header.addWidget(self.audio_btn)
@@ -173,13 +495,11 @@ class VideoCallClient(QMainWindow):
         
         splitter.addWidget(video_widget)
         
-        # ===== 右侧：聊天区域 =====
         chat_widget = QWidget()
         chat_widget.setMaximumWidth(400)
         chat_layout = QVBoxLayout(chat_widget)
         chat_layout.setSpacing(10)
         
-        # 聊天标题
         chat_title = QLabel("💬 医患交流")
         chat_title.setStyleSheet("""
             font-size: 16px; 
@@ -192,7 +512,6 @@ class VideoCallClient(QMainWindow):
         chat_title.setAlignment(Qt.AlignCenter)
         chat_layout.addWidget(chat_title)
         
-        # 聊天记录显示区
         self.chat_display = QTextEdit()
         self.chat_display.setReadOnly(True)
         self.chat_display.setStyleSheet("""
@@ -207,7 +526,6 @@ class VideoCallClient(QMainWindow):
         """)
         chat_layout.addWidget(self.chat_display)
         
-        # 消息输入区
         input_frame = QFrame()
         input_frame.setStyleSheet("background-color: #f5f5f5; border-radius: 8px;")
         input_layout = QVBoxLayout(input_frame)
@@ -224,9 +542,7 @@ class VideoCallClient(QMainWindow):
                 font-size: 13px;
                 background-color: white;
             }
-            QLineEdit:focus {
-                border: 2px solid #4CAF50;
-            }
+            QLineEdit:focus { border: 2px solid #4CAF50; }
         """)
         self.message_input.returnPressed.connect(self.send_message)
         input_layout.addWidget(self.message_input)
@@ -242,36 +558,40 @@ class VideoCallClient(QMainWindow):
                 font-size: 13px;
                 font-weight: bold;
             }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-            QPushButton:pressed {
-                background-color: #0D47A1;
-            }
+            QPushButton:hover { background-color: #1976D2; }
+            QPushButton:pressed { background-color: #0D47A1; }
         """)
         send_btn.clicked.connect(self.send_message)
         input_layout.addWidget(send_btn)
         
         chat_layout.addWidget(input_frame)
         
+        logout_btn = QPushButton("退出登录")
+        logout_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #e74c3c;
+                color: white;
+                border: none;
+                padding: 10px;
+                border-radius: 4px;
+                font-size: 13px;
+            }
+            QPushButton:hover { background-color: #c0392b; }
+        """)
+        logout_btn.clicked.connect(self.logout)
+        chat_layout.addWidget(logout_btn)
+        
         splitter.addWidget(chat_widget)
         
-        # 设置分割器比例
         splitter.setSizes([800, 400])
         
-        # 状态栏
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("正在连接服务器...")
         
-        # 设置整体样式
         self.setStyleSheet("""
-            QMainWindow {
-                background-color: #e8e8e8;
-            }
-            QWidget {
-                font-family: "Microsoft YaHei", "SimHei", sans-serif;
-            }
+            QMainWindow { background-color: #e8e8e8; }
+            QWidget { font-family: "Microsoft YaHei", "SimHei", sans-serif; }
         """)
     
     def setup_socket_events(self):
@@ -326,7 +646,6 @@ class VideoCallClient(QMainWindow):
             print(f"摄像头初始化错误: {e}")
     
     def init_audio_output(self):
-        """初始化音频输出（播放医生端的声音）"""
         try:
             self.audio_output = pyaudio.PyAudio()
             self.output_stream = self.audio_output.open(
@@ -340,15 +659,23 @@ class VideoCallClient(QMainWindow):
         except Exception as e:
             print(f"音频输出初始化错误: {e}")
     
+    def init_audio_input(self):
+        try:
+            self.audio, self.stream = init_audio_stream()
+            self.audio_enabled = True
+            self.audio_btn.setText("🔇 关闭音频")
+            self.update_status("音频已开启")
+            print("音频输入初始化成功")
+        except Exception as e:
+            self.update_status(f"音频开启失败: {e}")
+            print(f"音频输入初始化错误: {e}")
+    
     def send_video_frame(self):
-        """发送视频帧到服务器"""
         if self.has_camera and self.cap is not None:
             try:
                 ret, frame = capture_frame(self.cap)
                 if ret and frame is not None:
-                    # 更新本地显示
                     self.comm.new_local_frame.emit(frame)
-                    # 发送到服务器
                     jpg_as_text = frame_to_base64(frame)
                     if jpg_as_text and self.sio.connected:
                         self.sio.emit('video_frame', jpg_as_text)
@@ -356,14 +683,12 @@ class VideoCallClient(QMainWindow):
                 print(f"发送视频错误: {e}")
     
     def start_audio_thread(self):
-        """启动音频发送线程"""
         self.audio_thread_running = True
         self.audio_thread = threading.Thread(target=self.send_audio_loop)
         self.audio_thread.daemon = True
         self.audio_thread.start()
     
     def send_audio_loop(self):
-        """音频发送循环"""
         while self.audio_thread_running:
             if self.audio_enabled and self.stream is not None:
                 try:
@@ -373,14 +698,11 @@ class VideoCallClient(QMainWindow):
                         self.sio.emit('audio_frame', audio_data)
                 except Exception as e:
                     print(f"发送音频错误: {e}")
-            # 小延迟避免CPU占用过高
             import time
             time.sleep(0.01)
     
     def toggle_audio(self):
-        """切换音频状态"""
         if self.audio_enabled:
-            # 关闭音频
             try:
                 if self.stream:
                     close_audio_stream(self.audio, self.stream)
@@ -392,7 +714,6 @@ class VideoCallClient(QMainWindow):
             except Exception as e:
                 print(f"关闭音频错误: {e}")
         else:
-            # 开启音频
             try:
                 self.audio, self.stream = init_audio_stream()
                 self.audio_enabled = True
@@ -404,13 +725,9 @@ class VideoCallClient(QMainWindow):
                 print(f"音频初始化错误: {e}")
     
     def update_local_video(self, frame):
-        """更新本地视频显示"""
         if frame is not None:
-            # 转换颜色空间从BGR到RGB
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            # 调整大小以适应显示区域
             rgb_frame = cv2.resize(rgb_frame, (320, 240))
-            # 转换为QImage
             h, w, ch = rgb_frame.shape
             bytes_per_line = ch * w
             qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
@@ -418,13 +735,9 @@ class VideoCallClient(QMainWindow):
             self.local_video_label.setPixmap(pixmap)
     
     def update_remote_video(self, frame):
-        """更新远程视频显示（医生画面）"""
         if frame is not None:
-            # 转换颜色空间从BGR到RGB
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            # 调整大小以适应显示区域
             rgb_frame = cv2.resize(rgb_frame, (640, 480))
-            # 转换为QImage
             h, w, ch = rgb_frame.shape
             bytes_per_line = ch * w
             qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
@@ -432,7 +745,6 @@ class VideoCallClient(QMainWindow):
             self.remote_video_label.setPixmap(pixmap)
     
     def send_message(self):
-        """发送聊天消息"""
         message = self.message_input.text().strip()
         if message and self.sio.connected:
             data = {"message": message, "sender": "patient"}
@@ -441,14 +753,12 @@ class VideoCallClient(QMainWindow):
             self.message_input.clear()
     
     def receive_message(self, data):
-        """接收聊天消息"""
         sender = data.get("sender", "未知")
         message = data.get("message", "")
         if sender == "doctor":
             self.display_message("医生", message, "left")
     
     def display_message(self, sender, message, align):
-        """在聊天区显示消息"""
         if align == "right":
             html = f'''
             <div style="text-align: right; margin: 5px 0;">
@@ -466,38 +776,38 @@ class VideoCallClient(QMainWindow):
             </div>
             '''
         self.chat_display.append(html)
-        # 滚动到底部
         scrollbar = self.chat_display.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
     
     def update_status(self, message):
-        """更新状态栏消息"""
         self.status_bar.showMessage(message)
     
+    def logout(self):
+        reply = QMessageBox.question(self, '确认退出', '确定要退出登录吗？',
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            self.close()
+            self.login_window = LoginWindow()
+            self.login_window.show()
+    
     def closeEvent(self, event):
-        """窗口关闭事件"""
         self.audio_thread_running = False
         
-        # 停止视频定时器
         if hasattr(self, 'video_timer'):
             self.video_timer.stop()
         
-        # 断开Socket连接
         if self.sio.connected:
             self.sio.disconnect()
         
-        # 释放摄像头
         if self.has_camera and self.cap is not None:
             release_camera(self.cap)
         
-        # 关闭音频
         if self.audio_enabled:
             try:
                 close_audio_stream(self.audio, self.stream)
             except:
                 pass
         
-        # 关闭音频输出
         if self.output_stream:
             self.output_stream.stop_stream()
             self.output_stream.close()
@@ -511,12 +821,11 @@ def main():
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
     
-    # 设置应用程序字体
     font = QFont("Microsoft YaHei", 10)
     app.setFont(font)
     
-    client = VideoCallClient()
-    client.show()
+    login_window = LoginWindow()
+    login_window.show()
     
     sys.exit(app.exec_())
 

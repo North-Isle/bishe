@@ -1,9 +1,11 @@
-# 客户端主程序（树莓派端）
+# 客户端主程序（树莓派端）- 使用PyQt5桌面应用
+# 推荐使用 run_client.py 启动图形界面
+# 此文件保留作为备用命令行版本
+
 import cv2
 import socketio
 import threading
 import numpy as np
-import webbrowser
 from config import SERVER_HOST, SERVER_PORT, VIDEO_WIDTH, VIDEO_HEIGHT, VIDEO_FPS
 from utils.video_utils import capture_frame, frame_to_base64, base64_to_frame, show_frame, init_camera, release_camera
 from utils.audio_utils import init_audio_stream, read_audio, audio_to_base64, close_audio_stream
@@ -18,7 +20,6 @@ has_camera = False
 # 尝试初始化摄像头
 try:
     cap = init_camera(VIDEO_WIDTH, VIDEO_HEIGHT, VIDEO_FPS)
-    # 检查摄像头是否成功打开
     if cap is not None:
         has_camera = True
         print("摄像头初始化成功")
@@ -53,7 +54,6 @@ def init_audio():
 def toggle_audio():
     global audio, stream, audio_enabled
     if audio_enabled:
-        # 关闭音频
         try:
             close_audio_stream(audio, stream)
             audio, stream = None, None
@@ -62,7 +62,6 @@ def toggle_audio():
         except Exception as e:
             print(f"关闭音频错误: {e}")
     else:
-        # 开启音频
         init_audio()
 
 # 连接到服务器
@@ -142,12 +141,16 @@ def send_message():
             sio.emit('chat_message', {"message": message, "sender": "patient"})
 
 if __name__ == '__main__':
+    print("=" * 50)
+    print("远程医疗系统 - 患者端")
+    print("推荐使用 run_client.py 启动图形界面")
+    print("=" * 50)
+    
+    # 默认开启音频
+    init_audio()
+    
     # 连接到服务器
     connect_to_server()
-    
-    # 自动打开浏览器
-    print(f"正在打开浏览器，访问 http://{SERVER_HOST}:{SERVER_PORT}/patient")
-    webbrowser.open(f'http://{SERVER_HOST}:{SERVER_PORT}/patient')
     
     # 启动视频发送线程
     video_thread = threading.Thread(target=send_video)
