@@ -161,8 +161,14 @@ def init_audio_stream():
 
 # 读取音频数据
 def read_audio(stream):
-    data = stream.read(AUDIO_CHUNK)
-    return data
+    try:
+        # 使用exception_on_overflow=False参数防止输入溢出错误
+        data = stream.read(AUDIO_CHUNK, exception_on_overflow=False)
+        return data
+    except Exception as e:
+        print(f"读取音频数据错误: {e}")
+        # 返回空数据，避免程序崩溃
+        return b''
 
 # 将音频数据转换为base64编码
 def audio_to_base64(data):

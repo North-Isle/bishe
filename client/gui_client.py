@@ -405,7 +405,7 @@ class VideoCallClient(QMainWindow):
         super().__init__()
         self.user_info = user_info
         self.setWindowTitle(f"远程医疗系统 - {user_info.get('real_name', user_info.get('username', '用户'))}")
-        self.resize(1400, 900)
+        self.resize(1000, 600)
         
         self.sio = socketio.Client()
         self.setup_socket_events()
@@ -450,9 +450,10 @@ class VideoCallClient(QMainWindow):
         main_layout.addWidget(splitter)
         
         video_widget = QWidget()
-        video_layout = QVBoxLayout(video_widget)
+        video_layout = QHBoxLayout(video_widget)  # 改为水平布局
         video_layout.setSpacing(10)
         
+        # 医生画面（左侧）
         remote_frame = QFrame()
         remote_frame.setFrameStyle(QFrame.StyledPanel)
         remote_frame.setStyleSheet("background-color: #1a1a1a; border-radius: 8px;")
@@ -464,7 +465,7 @@ class VideoCallClient(QMainWindow):
         remote_layout.addWidget(remote_label)
         
         self.remote_video_label = QLabel()
-        self.remote_video_label.setMinimumSize(640, 480)
+        self.remote_video_label.setMinimumSize(320, 360)  # 调整大小
         self.remote_video_label.setStyleSheet("""
             background-color: #2a2a2a; 
             border-radius: 4px;
@@ -475,8 +476,9 @@ class VideoCallClient(QMainWindow):
         self.remote_video_label.setText("等待医生连接...")
         remote_layout.addWidget(self.remote_video_label)
         
-        video_layout.addWidget(remote_frame)
+        video_layout.addWidget(remote_frame, stretch=1)  # 各占一半空间
         
+        # 我的画面（右侧）
         local_frame = QFrame()
         local_frame.setFrameStyle(QFrame.StyledPanel)
         local_frame.setStyleSheet("background-color: #1a1a1a; border-radius: 8px;")
@@ -514,23 +516,23 @@ class VideoCallClient(QMainWindow):
         local_layout.addLayout(local_header)
         
         self.local_video_label = QLabel()
-        self.local_video_label.setFixedSize(320, 240)
+        self.local_video_label.setMinimumSize(320, 360)  # 改为自适应大小
         self.local_video_label.setStyleSheet("""
             background-color: #2a2a2a; 
             border-radius: 4px;
             color: #888888;
-            font-size: 12px;
+            font-size: 14px;
         """)
         self.local_video_label.setAlignment(Qt.AlignCenter)
         self.local_video_label.setText("摄像头初始化中...")
-        local_layout.addWidget(self.local_video_label)
+        local_layout.addWidget(self.local_video_label, stretch=1)  # 自适应拉伸
         
-        video_layout.addWidget(local_frame, alignment=Qt.AlignLeft)
+        video_layout.addWidget(local_frame, stretch=1)  # 各占一半空间
         
         splitter.addWidget(video_widget)
         
         chat_widget = QWidget()
-        chat_widget.setMaximumWidth(400)
+        chat_widget.setMinimumWidth(300)  # 设置最小宽度而不是最大宽度，确保聊天框有足够空间
         chat_layout = QVBoxLayout(chat_widget)
         chat_layout.setSpacing(10)
         

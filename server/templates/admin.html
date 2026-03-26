@@ -278,6 +278,32 @@
         .export-btn:hover {
             background-color: #219a52;
         }
+        
+        /* 表单样式 */
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #7f8c8d;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        
+        .form-group button {
+            margin-right: 10px;
+            margin-top: 10px;
+        }
         .pagination {
             display: flex;
             justify-content: center;
@@ -375,6 +401,7 @@
             <div class="search-box">
                 <input type="text" id="user-search" placeholder="搜索用户名、姓名...">
                 <button onclick="searchUsers()">🔍 搜索</button>
+                <button class="export-btn" onclick="openAddUserModal()">👤 添加医生</button>
             </div>
             <div class="table-container">
                 <table>
@@ -425,6 +452,38 @@
                 <button class="close-btn" onclick="closeModal()">&times;</button>
             </div>
             <div id="modal-body"></div>
+        </div>
+    </div>
+    
+    <!-- 添加医生模态框 -->
+    <div id="add-user-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>添加医生用户</h2>
+                <button class="close-btn" onclick="closeAddUserModal()">&times;</button>
+            </div>
+            <div id="add-user-body">
+                <div class="form-group">
+                    <label for="new-username">用户名</label>
+                    <input type="text" id="new-username" required placeholder="请输入用户名">
+                </div>
+                <div class="form-group">
+                    <label for="new-password">密码</label>
+                    <input type="password" id="new-password" required placeholder="请输入密码">
+                </div>
+                <div class="form-group">
+                    <label for="new-real-name">真实姓名</label>
+                    <input type="text" id="new-real-name" placeholder="请输入真实姓名">
+                </div>
+                <div class="form-group">
+                    <label for="new-id-card">身份证号</label>
+                    <input type="text" id="new-id-card" placeholder="请输入身份证号">
+                </div>
+                <div class="form-group">
+                    <button class="btn btn-view" onclick="addDoctor()">添加</button>
+                    <button class="btn btn-delete" onclick="closeAddUserModal()">取消</button>
+                </div>
+            </div>
         </div>
     </div>
     
@@ -739,6 +798,65 @@
         
         function closeModal() {
             document.getElementById('detail-modal').classList.remove('show');
+        }
+        
+        // 打开添加医生模态框
+        function openAddUserModal() {
+            document.getElementById('add-user-modal').classList.add('show');
+        }
+        
+        // 关闭添加医生模态框
+        function closeAddUserModal() {
+            document.getElementById('add-user-modal').classList.remove('show');
+        }
+        
+        // 添加医生
+        function addDoctor() {
+            const username = document.getElementById('new-username').value.trim();
+            const password = document.getElementById('new-password').value.trim();
+            const realName = document.getElementById('new-real-name').value.trim();
+            const idCard = document.getElementById('new-id-card').value.trim();
+            
+            if (!username || !password) {
+                alert('用户名和密码不能为空');
+                return;
+            }
+            
+            // 调用API注册医生
+            fetch('/api/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username: username,
+                    password: password,
+                    real_name: realName,
+                    id_card: idCard,
+                    role: 'doctor'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('医生添加成功');
+                    closeAddUserModal();
+                    // 刷新用户列表
+                    loadUsers();
+                    loadStats();
+                    // 清空表单
+                    document.getElementById('new-username').value = '';
+                    document.getElementById('new-password').value = '';
+                    document.getElementById('new-real-name').value = '';
+                    document.getElementById('new-id-card').value = '';
+                } else {
+                    alert('添加失败: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('添加医生出错:', error);
+                alert('添加过程中发生错误');
+            });
         }
         
         function formatDate(dateStr) {

@@ -7,8 +7,9 @@ PORT = 5000
 # 数据库配置
 DATABASE_URI = 'sqlite:///clinic.db'
 
-# 密钥
-SECRET_KEY = 'your-secret-key'
+# 密钥 - 生产环境应使用随机生成的强密钥
+import os
+SECRET_KEY = os.environ.get('SECRET_KEY') or 'a-very-secure-random-secret-key-change-in-production'
 
 # 视频流配置
 VIDEO_WIDTH = 640
